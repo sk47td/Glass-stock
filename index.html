@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Glass Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-main: #334155;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --danger-bg: #fee2e2;
+            --danger-text: #991b1b;
+            --online: #10b981;
+            --offline: #f59e0b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+            font-size: 13px;
+        }
+
+        .container {
+            max-width: 950px;
+            margin: 0 auto;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Online / Offline Status Indicator */
+        .status-badge {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.3s;
+        }
+        .status-badge.online { background-color: var(--online); }
+        .status-badge.offline { background-color: var(--offline); }
+        .status-badge .dot {
+            width: 7px;
+            height: 7px;
+            background-color: white;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-secondary {
+            background-color: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            border: none;
+        }
+        
+        .btn-secondary:hover { background-color: #059669; }
+
+        .search-section {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 15px;
+        }
+
+        .search-section input {
+            width: 100%;
+            padding: 10px 15px;
+            font-size: 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            background-color: #f8fafc;
+            transition: all 0.2s;
+        }
+
+        .search-section input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .add-section {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
+        }
+        
+        .add-section h3 { margin: 0 0 10px 0; font-size: 14px; color: var(--text-muted); }
+
+        .add-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .add-form input {
+            flex: 1; min-width: 120px; padding: 8px 12px; font-size: 13px;
+            border: 1px solid var(--border); border-radius: 6px;
+        }
+
+        button {
+            padding: 8px 16px; background-color: var(--primary); color: white;
+            border: none; border-radius: 6px; cursor: pointer; font-weight: 600;
+            font-size: 13px; transition: background 0.2s; white-space: nowrap;
+        }
+
+        button:hover { background-color: var(--primary-hover); }
+
+        .groups-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 15px;
+        }
+
+        .group-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .group-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 4px;
+            padding: 4px;
+            transition: transform 4s linear, opacity 4s linear, background-color 0.2s;
+        }
+
+        .group-header.holding-set {
+            background-color: var(--danger-bg) !important;
+            color: var(--danger-text);
+            transform: scale(0.97);
+            opacity: 0.5;
+        }
+
+        .group-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toggle-icon {
+            font-size: 16px;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+
+        .group-label { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+        .group-size {
+            background: var(--bg); padding: 3px 8px; border-radius: 12px;
+            font-size: 12px; font-weight: 600; color: var(--text-muted);
+        }
+
+        .model-list-container {
+            display: none;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .group-card.expanded .model-list-container { display: block; }
+        .group-card.expanded .toggle-icon { transform: rotate(90deg); color: var(--primary); }
+
+        .model-list {
+            list-style: none; padding: 0; margin: 0;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+
+        .model-item {
+            background: var(--bg); padding: 6px 10px; border-radius: 4px;
+            font-size: 12px; color: #475569;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: transform 4s linear, opacity 4s linear, background-color 0.2s;
+        }
+
+        .model-item:hover {
+            background-color: #e2e8f0;
+        }
+
+        .model-item.holding-model {
+            background-color: var(--danger-bg) !important;
+            color: var(--danger-text);
+            transform: scale(0.95);
+            opacity: 0.4;
+        }
+        
+        .match-highlight {
+            background-color: #fef08a;
+            color: #854d0e;
+            font-weight: 600;
+            border-radius: 2px;
+            padding: 0 2px;
+        }
+
+        .error { color: #ef4444; font-size: 12px; margin-top: 8px; display: none; }
+        
+        .hint-container {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-top">
+        <header>
+            <h1>Universal Glass Manager 
+                <span id="networkStatus" class="status-badge online"><span class="dot"></span>Online</span>
+            </h1>
+        </header>
+        <div class="actions">
+            <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style="display: none;">
+            <button class="btn-secondary" id="btnImport">📥 Import Excel</button>
+            <button class="btn-secondary" id="btnExport">📤 Export Excel</button>
+        </div>
+    </div>
+
+    <div class="search-section">
+        <input type="text" id="searchInput" placeholder="Search by model name (e.g., Realme) or size (e.g., 6.6)...">
+    </div>
+
+    <div class="add-section">
+        <h3>Add New Model</h3>
+        <div class="add-form">
+            <input type="text" id="inputLabel" placeholder="Set Label (e.g., 1.1)">
+            <input type="text" id="inputSize" placeholder="Size (e.g., 6.6 inch)">
+            <input type="text" id="inputModel" placeholder="Phone Model (e.g., Realme C55)">
+            <button id="btnAddModel">+ Add Data</button>
+        </div>
+        <div id="error-msg" class="error">Please fill in all fields.</div>
+    </div>
+
+    <div class="hint-container">
+        <div>💡 <b>Double tap / Double click</b> on a set header to open/close models.</div>
+        <div>⚠️ Hold a <b>Model</b> or <b>Set Header</b> for 4s to delete.</div>
+    </div>
+
+    <div id="groupsContainer" class="groups-grid"></div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+    import { 
+        getFirestore, 
+        initializeFirestore,
+        persistentLocalCache,
+        persistentMultipleTabManager,
+        doc, 
+        setDoc, 
+        deleteDoc, 
+        updateDoc, 
+        collection, 
+        onSnapshot 
+    } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+
+    // Your provided web app's Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyAki2U_0DOUelJNuM-dTRuiilB4v_9jA18",
+        authDomain: "glass-stock-eb2bc.firebaseapp.com",
+        projectId: "glass-stock-eb2bc",
+        storageBucket: "glass-stock-eb2bc.firebasestorage.app",
+        messagingSenderId: "484101149800",
+        appId: "1:484101149800:web:4df23678eef9c402db17dd",
+        measurementId: "G-G705Z8KNFW"
+    };
+
+    // Initialize Firebase Core
+    const app = initializeApp(firebaseConfig);
+
+    // Initialize Firestore with robust local offline persistence structure
+    const db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+        })
+    });
+
+    // --- APPLICATION STATE VARIABLES ---
+    let glassData = [];
+    let expandedSets = [];
+    let isSearching = false;
+
+    const container = document.getElementById('groupsContainer');
+    const searchInput = document.getElementById('searchInput');
+    const networkStatus = document.getElementById('networkStatus');
+
+    // --- NETWORK CONNECTION DETECTION TRACKER ---
+    function updateOnlineStatus() {
+        if (navigator.onLine) {
+            networkStatus.className = "status-badge online";
+            networkStatus.innerHTML = '<span class="dot"></span>Online';
+        } else {
+            networkStatus.className = "status-badge offline";
+            networkStatus.innerHTML = '<span class="dot"></span>Offline (Saving Locally First)';
+        }
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+
+    // --- REAL-TIME CACHED DATA SYNC ---
+    onSnapshot(collection(db, "glasses"), (snapshot) => {
+        let loadedMap = {};
+        snapshot.forEach((docSnapshot) => {
+            const data = docSnapshot.data();
+            loadedMap[docSnapshot.id] = {
+                label: docSnapshot.id,
+                size: data.size,
+                models: data.models || []
+            };
+        });
+        
+        glassData = Object.values(loadedMap);
+        glassData.sort((a, b) => a.label.localeCompare(b.label, undefined, {numeric: true}));
+        
+        executeSearch();
+    });
+
+    // --- REALTIME SEARCH LOGIC (WITH HIGH-LIGHTING AND AUTO-EXPAND) ---
+    function executeSearch() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        
+        if (!searchTerm) {
+            isSearching = false;
+            renderGroups(glassData, "");
+            return;
+        }
+        
+        isSearching = true;
+        const filteredData = glassData.map(group => {
+            const matchesGroup = group.label.toLowerCase().includes(searchTerm) || 
+                                 group.size.toString().toLowerCase().includes(searchTerm);
+            
+            const matchedModels = group.models.filter(model => 
+                model.toLowerCase().includes(searchTerm)
+            );
+
+            if (matchesGroup) {
+                return group;
+            } else if (matchedModels.length > 0) {
+                return { ...group, models: matchedModels };
+            }
+            return null;
+        }).filter(group => group !== null);
+
+        renderGroups(filteredData, searchTerm);
+    }
+
+    searchInput.addEventListener('input', executeSearch);
+
+    // --- CREATE/UPDATE MODEL LOGIC ---
+    async function addModel() {
+        let label = document.getElementById('inputLabel').value.trim();
+        const sizeStr = document.getElementById('inputSize').value.trim();
+        const model = document.getElementById('inputModel').value.trim();
+        const errorMsg = document.getElementById('error-msg');
+
+        if (!label || !sizeStr || !model) { errorMsg.style.display = 'block'; return; }
+        errorMsg.style.display = 'none';
+
+        label = label.replace(/set\s*/i, '').trim();
+
+        const existingGroup = glassData.find(g => g.label.toLowerCase() === label.toLowerCase());
+        let updatedModels = [];
+
+        if (existingGroup) {
+            updatedModels = [...existingGroup.models];
+            if (!updatedModels.includes(model)) {
+                updatedModels.push(model);
+            }
+        } else {
+            updatedModels = [model];
+        }
+
+        // Writes directly to local device state cache instantly, syncs with Firestore in background
+        await setDoc(doc(db, "glasses", label), {
+            size: sizeStr,
+            models: updatedModels
+        });
+
+        // Reset only the phone model box
+        document.getElementById('inputModel').value = '';
+    }
+    document.getElementById('btnAddModel').addEventListener('click', addModel);
+
+    // --- DESKTOP/MOBILE COMPATIBLE RENDERING SYSTEM ---
+    function renderGroups(dataToRender, highlightTerm = "") {
+        container.innerHTML = '';
+
+        if (dataToRender.length === 0) {
+            container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 20px;">No matching results found.</p>';
+            return;
+        }
+
+        dataToRender.forEach(group => {
+            const card = document.createElement('div');
+            const shouldBeExpanded = isSearching ? true : expandedSets.includes(group.label);
+            card.className = `group-card ${shouldBeExpanded ? 'expanded' : ''}`;
+
+            const highlightText = (text) => {
+                if(!highlightTerm) return text;
+                const regex = new RegExp(`(${highlightTerm})`, 'gi');
+                return text.replace(regex, `<span class="match-highlight">$1</span>`);
+            };
+
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'group-header';
+            cardHeader.innerHTML = `
+                <div class="group-header-left">
+                    <span class="toggle-icon">▶</span>
+                    <span class="group-label">Set ${highlightText(group.label)}</span>
+                </div>
+                <span class="group-size">${highlightText(group.size)}</span>
+            `;
+            
+            // Hold 4 seconds to drop whole set group
+            let setPressTimer;
+            let isSetLongPress = false;
+
+            const startSetPress = () => {
+                isSetLongPress = false;
+                cardHeader.classList.add('holding-set');
+                setPressTimer = window.setTimeout(async () => {
+                    isSetLongPress = true;
+                    cardHeader.classList.remove('holding-set');
+                    const confirmDelete = confirm(`⚠️ Are you sure you want to delete ENTIRE "Set ${group.label}"?`);
+                    if (confirmDelete) {
+                        await deleteDoc(doc(db, "glasses", group.label));
+                        expandedSets = expandedSets.filter(l => l !== group.label);
+                    }
+                }, 4000);
+            };
+
+            const cancelSetPress = () => {
+                clearTimeout(setPressTimer);
+                cardHeader.classList.remove('holding-set');
+            };
+
+            const handleSetDoubleToggle = () => {
+                if (!isSetLongPress && !isSearching) {
+                    if (expandedSets.includes(group.label)) {
+                        expandedSets = expandedSets.filter(l => l !== group.label);
+                    } else {
+                        expandedSets.push(group.label);
+                    }
+                    card.classList.toggle('expanded');
+                }
+            };
+
+            cardHeader.addEventListener('mousedown', startSetPress);
+            cardHeader.addEventListener('mouseup', cancelSetPress);
+            cardHeader.addEventListener('mouseleave', cancelSetPress);
+            cardHeader.addEventListener('dblclick', handleSetDoubleToggle);
+
+            let lastTap = 0;
+            cardHeader.addEventListener('touchstart', startSetPress);
+            cardHeader.addEventListener('touchend', (e) => {
+                cancelSetPress();
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                if (tapLength < 300 && tapLength > 0) {
+                    handleSetDoubleToggle();
+                    e.preventDefault();
+                }
+                lastTap = currentTime;
+            });
+            cardHeader.addEventListener('touchcancel', cancelSetPress);
+
+            const listContainer = document.createElement('div');
+            listContainer.className = 'model-list-container';
+            const ul = document.createElement('ul');
+            ul.className = 'model-list';
+
+            group.models.forEach(model => {
+                const li = document.createElement('li');
+                li.className = 'model-item';
+                li.innerHTML = highlightText(model);
+
+                // Hold 4 seconds to drop item
+                let modelPressTimer;
+
+                const startModelPress = () => {
+                    li.classList.add('holding-model');
+                    modelPressTimer = window.setTimeout(async () => {
+                        li.classList.remove('holding-model');
+                        const confirmDelete = confirm(`Delete "${model}" from Set ${group.label}?`);
+                        if (confirmDelete) {
+                            const updatedList = group.models.filter(m => m !== model);
+                            if (updatedList.length === 0) {
+                                await deleteDoc(doc(db, "glasses", group.label));
+                            } else {
+                                await updateDoc(doc(db, "glasses", group.label), { models: updatedList });
+                            }
+                        }
+                    }, 4000);
+                };
+
+                const cancelModelPress = () => {
+                    clearTimeout(modelPressTimer);
+                    li.classList.remove('holding-model');
+                };
+
+                li.addEventListener('mousedown', startModelPress);
+                li.addEventListener('mouseup', cancelModelPress);
+                li.addEventListener('mouseleave', cancelModelPress);
+                li.addEventListener('touchstart', startModelPress);
+                li.addEventListener('touchend', cancelModelPress);
+                li.addEventListener('touchcancel', cancelModelPress);
+
+                ul.appendChild(li);
+            });
+
+            listContainer.appendChild(ul);
+            card.appendChild(cardHeader);
+            card.appendChild(listContainer);
+            container.appendChild(card);
+        });
+    }
+
+    // --- SPREADSHEET EXPORT HANDLING ---
+    function exportExcel() {
+        let exportData = [];
+        glassData.forEach(group => {
+            group.models.forEach(model => {
+                exportData.push({
+                    "Set Label": group.label,
+                    "Size": group.size,
+                    "Model": model
+                });
+            });
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "GlassData");
+        XLSX.writeFile(workbook, "Universal_Glass_Data.xlsx");
+    }
+    document.getElementById('btnExport').addEventListener('click', exportExcel);
+
+    // --- SPREADSHEET IMPORT HANDLING ---
+    function importExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            let newDataMap = {};
+            
+            jsonData.forEach(row => {
+                let label = row["Set Label"] || row["Label"] || row["Set"];
+                let size = row["Size"] || row["Screen Size"];
+                let model = row["Model"] || row["Phone Model"] || row["Models"];
+                
+                if (label && model) {
+                    label = String(label).replace(/set\s*/i, '').trim();
+                    size = size ? String(size).trim() : '';
+                    model = String(model).trim();
+                    
+                    if (!newDataMap[label]) {
+                        newDataMap[label] = { label: label, size: size, models: [] };
+                    }
+                    if (!newDataMap[label].models.includes(model)) {
+                        newDataMap[label].models.push(model);
+                    }
+                }
+            });
+
+            // Write all map collection drops straight into individual Firestore docs
+            Object.values(newDataMap).forEach(async (group) => {
+                await setDoc(doc(db, "glasses", group.label), {
+                    size: group.size,
+                    models: group.models
+                });
+            });
+            
+            searchInput.value = '';
+            expandedSets = []; 
+            isSearching = false;
+            alert("Data successfully imported into local store! Syncing to database...");
+        };
+        reader.readAsArrayBuffer(file);
+        event.target.value = '';
+    }
+    
+    const fileInput = document.getElementById('importFile');
+    fileInput.addEventListener('change', importExcel);
+    document.getElementById('btnImport').addEventListener('click', () => fileInput.click());
+</script>
+
+</body>
+</html>
