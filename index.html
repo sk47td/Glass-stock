@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PhoneZone Pro - Glass Manager</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+
+body{
+    font-family: Arial;
+    background:#0f0f0f;
+    color:#fff;
+    margin:0;
+    padding:15px;
+}
+
+h2{color:#00ff88;}
+
+.dashboard{
+    display:flex;
+    justify-content:space-between;
+    background:#1b1b1b;
+    padding:10px;
+    border-radius:10px;
+    margin-bottom:15px;
+}
+
+.stat{text-align:center;}
+.stat span{
+    display:block;
+    font-size:20px;
+    font-weight:bold;
+    color:#00ff88;
+}
+
+input,button,textarea{
+    padding:10px;
+    margin:6px 0;
+    width:100%;
+    border-radius:6px;
+    border:none;
+    box-sizing:border-box;
+}
+
+button{
+    background:#00ff88;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.card{
+    background:#1c1c1c;
+    padding:12px;
+    margin:10px 0;
+    border-radius:10px;
+}
+
+.low{color:orange;font-weight:bold;}
+.out{color:red;font-weight:bold;}
+
+.small-btn{
+    width:auto;
+    padding:5px 10px;
+    margin-right:5px;
+}
+
+.hidden{display:none;}
+.highlight{color:#00ff88;font-weight:bold;}
+.pdf-btn{background:#ff4444;}
+
+</style>
+</head>
+<body>
+
+<h2>📱 PhoneZone Glass Manager PRO</h2>
+
+<div class="dashboard">
+    <div class="stat">Total Sets <span id="totalSets">0</span></div>
+    <div class="stat">Total Stock <span id="totalStock">0</span></div>
+    <div class="stat">Low Stock <span id="lowStockCount">0</span></div>
+</div>
+
+<!-- Separate Search Bars -->
+<input type="text" id="searchModel" placeholder="🔍 Search Model Name..." onkeyup="searchData()">
+<input type="text" id="searchSize" placeholder="📏 Search Size..." onkeyup="searchData()">
+
+<button onclick="toggleForm()">+ Add Set</button>
+<button class="pdf-btn" onclick="downloadLowStock()">Download Low Stock PDF</button>
+
+<div id="formSection" class="hidden">
+
+<h3>Add / Edit Set</h3>
+<input type="hidden" id="editId">
+
+<input type="text" id="setCode" placeholder="Set Code">
+<input type="text" id="glassType" placeholder="Glass Type">
+<input type="text" id="size" placeholder="Size">
+<input type="number" id="quantity" placeholder="Total Quantity">
+<input type="text" id="rack" placeholder="Rack Location">
+<textarea id="models" placeholder="Models separated by comma"></textarea>
+
+<button onclick="saveSet()">Save</button>
+
+</div>
+
+<h3>All Sets</h3>
+<div id="setList"></div>
+
+<script>
+
+let sets = JSON.parse(localStorage.getItem("glassSetsPro")) || [];
+
+function saveData(){
+    localStorage.setItem("glassSetsPro", JSON.stringify(sets));
+}
+
+function toggleForm(){
+    document.getElementById("formSection").classList.toggle("hidden");
+}
+
+function saveSet(){
+
+    let modelArray = models.value
+        .toLowerCase()
+        .split(",")
+        .map(m=>m.trim())
+        .filter(m=>m!="");
+
+    let uniqueModels = [...new Set(modelArray)];
+
+    if(editId.value){
+        let set = sets.find(s=>s.id==editId.value);
+        set.code=setCode.value;
+        set.type=glassType.value;
+        set.size=size.value;
+        set.quantity=parseInt(quantity.value);
+        set.rack=rack.value;
+        set.models=uniqueModels;
+    }else{
+        sets.push({
+            id:Date.now().toString(),
+            code:setCode.value,
+            type:glassType.value,
+            size:size.value,
+            quantity:parseInt(quantity.value),
+            rack:rack.value,
+            models:uniqueModels
+        });
+    }
+
+    saveData();
+    render();
+    toggleForm();
+}
+
+function render(){
+
+    let output="";
+    let totalStock=0;
+    let lowStockCount=0;
+
+    sets.forEach(set=>{
+
+        totalStock+=set.quantity;
+
+        let stockClass="";
+        if(set.quantity==0){
+            stockClass="out";
+            lowStockCount++;
+        }
+        else if(set.quantity<3){
+            stockClass="low";
+            lowStockCount++;
+        }
+
+        output+=`
+        <div class="card">
+        <b>${set.code}</b> (${set.type}) - ${set.size}<br>
+        Rack: ${set.rack}<br>
+        Stock: <span class="${stockClass}">${set.quantity}</span><br>
+        <button class="small-btn" onclick="sell('${set.id}')">Sell -1</button>
+        <button class="small-btn" onclick="addStock('${set.id}')">Add +1</button>
+        <button class="small-btn" onclick="editSet('${set.id}')">Edit</button>
+        <button class="small-btn" onclick="deleteSet('${set.id}')">Delete</button>
+        </div>
+        `;
+    });
+
+    setList.innerHTML=output;
+    totalSets.innerText=sets.length;
+    totalStock.innerText=totalStock;
+    lowStockCount.innerText=lowStockCount;
+}
+
+function searchData(){
+
+    let modelSearch = searchModel.value.toLowerCase().trim();
+    let sizeSearch = searchSize.value.toLowerCase().trim();
+
+    if(modelSearch==="" && sizeSearch===""){
+        render();
+        return;
+    }
+
+    let output="";
+
+    sets.forEach(set=>{
+
+        let sizeMatch = sizeSearch && set.size.toLowerCase().includes(sizeSearch);
+
+        let matchedModels = set.models.filter(m=>m.includes(modelSearch));
+
+        if((modelSearch && matchedModels.length>0) || sizeMatch){
+
+            output+=`
+            <div class="card">
+            <b>${set.code}</b> (${set.type}) - ${set.size}<br>
+            Rack: ${set.rack}<br>
+            Stock: ${set.quantity}<br>
+            ${matchedModels.length>0 ? 
+                "Model: <span class='highlight'>" + matchedModels.join(", ") + "</span>" 
+                : ""}
+            </div>
+            `;
+        }
+    });
+
+    setList.innerHTML=
+        output || "<div class='card'>No matching result</div>";
+}
+
+function sell(id){
+    let set=sets.find(s=>s.id==id);
+    if(set.quantity>0){
+        set.quantity--;
+        saveData();
+        render();
+    }
+}
+
+function addStock(id){
+    let set=sets.find(s=>s.id==id);
+    set.quantity++;
+    saveData();
+    render();
+}
+
+function editSet(id){
+    let set=sets.find(s=>s.id==id);
+    editId.value=set.id;
+    setCode.value=set.code;
+    glassType.value=set.type;
+    size.value=set.size;
+    quantity.value=set.quantity;
+    rack.value=set.rack;
+    models.value=set.models.join(", ");
+    document.getElementById("formSection").classList.remove("hidden");
+}
+
+function deleteSet(id){
+    if(confirm("Delete this set?")){
+        sets=sets.filter(s=>s.id!=id);
+        saveData();
+        render();
+    }
+}
+
+function downloadLowStock(){
+
+    let lowStockSets = sets.filter(s=>s.quantity<3);
+
+    if(lowStockSets.length==0){
+        alert("No low stock items.");
+        return;
+    }
+
+    let content = "PhoneZone Low Stock Report\n\n";
+
+    lowStockSets.forEach(s=>{
+        content += `Set: ${s.code}\nType: ${s.type}\nSize: ${s.size}\nStock: ${s.quantity}\nRack: ${s.rack}\n\n`;
+    });
+
+    let blob = new Blob([content], { type: "application/pdf" });
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Low_Stock_Report.pdf";
+    link.click();
+}
+
+render();
+
+</script>
+</body>
+</html>
